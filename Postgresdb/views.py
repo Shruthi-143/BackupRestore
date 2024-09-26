@@ -13,8 +13,6 @@ POSTGRES_USER = os.environ.get("POSTGRES_USER")
 POSTGRES_PASSWORD = os.environ.get("POSTGRES_PASSWORD")
 POSTGRES_PORT = os.environ.get("POSTGRES_PORT")
 DATABASE_NAME = os.environ.get("DATABASE_NAME")
-FILE_PATH = os.environ.get("FILE_PATH")
-SCHEMA_FILE_PATH = os.environ.get("SCHEMA_FILE_PATH")
 
 class PostgresBackup(APIView):
     def get(self, request):
@@ -44,12 +42,12 @@ class PostgresBackup(APIView):
         return Response(payload, status=status.HTTP_200_OK)
     
     def post(self, request):
-        choice = request.data.get("proceed",None)
-        backupType = request.data.get("backupType",None)
-        if choice and backupType.lower() == "server":
-            # Backup
-            if ServerSchemaBackup(POSTGRES_USER, POSTGRES_HOST, POSTGRES_PORT, POSTGRES_PASSWORD, FILE_PATH):
-                path =  ServerDataBackup(POSTGRES_USER, POSTGRES_HOST, POSTGRES_PORT, POSTGRES_PASSWORD, FILE_PATH)
+        backupPath = request.data.get("backup_file",None)
+        backupType = request.data.get("backup_type",None)
+        dbName = request.data.get("database_name",None)
+        if backupType.lower() == "server":
+            if ServerSchemaBackup(POSTGRES_USER, POSTGRES_HOST, POSTGRES_PORT, POSTGRES_PASSWORD, backupPath):
+                path =  ServerDataBackup(POSTGRES_USER, POSTGRES_HOST, POSTGRES_PORT, POSTGRES_PASSWORD, backupPath)
                 payload = {
                     "status":True,
                     "message":"Backup successfull.",
@@ -57,15 +55,24 @@ class PostgresBackup(APIView):
                     "error":None
                 }
                 return Response(payload, status=status.HTTP_200_OK)
-        # elif choice and backupType.lower() == "database":
+        elif backupType.lower() == "database":
+            if DatabaseSchemaBackup(POSTGRES_USER, POSTGRES_HOST, POSTGRES_PORT, POSTGRES_PASSWORD, dbName, backupPath):
+                payload = {
+                    "status":True,
+                    "message":"Backup successfull",
+                    "filePath":backupPath,
+                    "error":None
+                }
+                return Response(payload, status=status.HTTP_200_OK)
 
 class PostgresRestore(APIView):
     def post(self, request):
-        choice = request.data.get("proceed",None)
+        filePath = request.data.get("file_path",None)
+        schemaPath = request.data.get("schema_path",None)
         # Restore
-        if choice and choice == True:
-            if ServerSchemaRestore(POSTGRES_USER, POSTGRES_HOST, POSTGRES_PORT, POSTGRES_PASSWORD, SCHEMA_FILE_PATH):
-                path = ServerDataRestore(POSTGRES_USER, POSTGRES_HOST, POSTGRES_PORT, POSTGRES_PASSWORD, FILE_PATH)
+        if filePath and schemaPath:
+            if ServerSchemaRestore(POSTGRES_USER, POSTGRES_HOST, POSTGRES_PORT, POSTGRES_PASSWORD, schemaPath):
+                path = ServerDataRestore(POSTGRES_USER, POSTGRES_HOST, POSTGRES_PORT, POSTGRES_PASSWORD, filePath)
                 if path:
                     payload = {
                         "status":True,
@@ -93,7 +100,7 @@ class PostgresRestore(APIView):
         else:
             payload = {
                 "status":False,
-                "message":"User has chosed not to proceed.",
+                "message":"User has not provided schema and backup file path.",
                 "data":None,
                 "error":"Restoration will not proceed."
             }
@@ -101,10 +108,11 @@ class PostgresRestore(APIView):
 
 class CaseMMRestoreSchema(APIView):
     def post(self, request):
-        choice = request.data.get("proceed",None)
+        schemaFilePath = request.data.get("schema_path",None)
+        dbName = request.data.get("database_name",None)
         
-        if choice and choice == True:
-            dbname = RestoreSchema(POSTGRES_USER, POSTGRES_HOST, POSTGRES_PORT, DATABASE_NAME, POSTGRES_PASSWORD, SCHEMA_FILE_PATH)
+        if schemaFilePath:
+            dbname = RestoreSchema(POSTGRES_USER, POSTGRES_HOST, POSTGRES_PORT, dbName, POSTGRES_PASSWORD, schemaFilePath)
             payload = {
                 "status":True,
                 "message":"Schema Restored Successfully",
@@ -115,8 +123,8 @@ class CaseMMRestoreSchema(APIView):
         else:
             payload = {
                 "status":False,
-                "message":"User has chosed not to proceed.",
+                "message":"Schema Path not provided.",
                 "data":None,
                 "error":"Schema restoration will not proceed."
             }
-            return Response(payload, status=status.HTTP_200_OK)
+            return Response(payload, status=status.HTTP_400_BAD_REQUEST)

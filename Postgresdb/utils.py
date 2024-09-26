@@ -117,8 +117,42 @@ def ServerDataRestore( user, host, port, password, filePath):
     finally:
         del os.environ['PGPASSWORD']
 
+
 def RestoreSchema(user, host, port, dbname, password, schemaBackupPath):
     os.environ['PGPASSWORD'] = password
+
+    checkDbCommand = [
+        'psql',
+        '-U', user,
+        '-h', host,
+        '-p', str(port),
+        '-d', 'postgres',  # Connect to default database to check
+        '-tAc', f"SELECT 1 FROM pg_database WHERE datname = '{dbname}'"
+    ]
+    try:
+        print(f"Checking if database '{dbname}' exists...")
+        result = subprocess.run(checkDbCommand, check=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
+        
+        # If result stdout is empty, it means the database doesn't exist
+        if not result.stdout.strip():
+            raise Exception("Database does not exist")
+        print(f"Database '{dbname}' exists.")
+    except Exception as e:
+        print(f"Database '{dbname}' does not exist, creating database...")
+        try:
+            createDbCommand = f'CREATE DATABASE "{dbname}";'
+            subprocess.run(
+                ['psql', '-U', user, '-h', host, '-p', str(port), '-d', 'postgres', '-c', createDbCommand],
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True
+            )
+            print(f"Database '{dbname}' created successfully.")
+        except subprocess.CalledProcessError as e:
+            print(f"Error during database creation: {e.stderr}")
+            return False
+            
     try:
         # Restore schema
         command = [
@@ -132,9 +166,43 @@ def RestoreSchema(user, host, port, dbname, password, schemaBackupPath):
         subprocess.run(command, check=True)
         print(f"Schema restoration successful for database: {dbname}")
     except subprocess.CalledProcessError as e:
-        print(f"Error during schema restoration: {e.stderr.decode()}")
+        print(f"Error during schema restoration: {str(e)}")
         return False
     finally:
         os.environ.pop('PGPASSWORD', None)
     
     return dbname
+
+
+def DatabaseSchemaBackup(user, host, port, password, dbName, filePath):
+    os.environ['PGPASSWORD'] = password
+    filePath = os.path.join(filePath, f'{datetime.datetime.now().strftime("%d%m%Y")}_{host}_{dbName}_schema.sql')
+    tempFilepath = filePath + ".tmp"
+    
+    command = [
+        'pg_dump',
+        '-U', user,
+        '-h', str(host),
+        '-p', str(port),
+        '--schema-only',
+        '-v', 
+        '-f', tempFilepath,
+        dbName
+    ]
+    
+    result = subprocess.run(command, check=True)
+    
+    with open(tempFilepath, 'r') as infile, open(filePath, 'w') as outfile:
+        for line in infile:
+            if 'CREATE ROLE postgres' in line or 'ALTER ROLE postgres' in line:
+                continue  # Skip lines related to postgres role
+            outfile.write(line)
+
+    os.remove(tempFilepath)
+    
+    if result.returncode != 0:
+        print(f"Backup failed: {result.stderr.decode()}")
+        return False
+    else:
+        # print(f"Backup successful. File saved to {filePath}")
+        return True

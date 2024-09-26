@@ -42,7 +42,7 @@ class ScyllaBackup(APIView):
         userInput = request.data.get("choice",None)
         backupPath = request.data.get("backup_path",None)
         
-        if not userInput and userInput is None:
+        if keySpaceName:
             estimatedBackupSize = GetEstimatedBackupSize(HOST, USERNAME, PASSWORD, keySpaceName)
             payload = {
                 "status": True,
@@ -193,15 +193,16 @@ class ScyllaRestoreKeyspace(APIView):
         RestoreKeySpaceFromLocal(HOST, USERNAME, PASSWORD, keyspaceName, backupFile)
         payload = {
                 "status": True,
-                "message": f"Restore done for keyspaces{keyspaceName}. Please restart ScyllaDB to reflect the newly backed-up data.",
+                "message": f"Restore done for keyspaces {keyspaceName}. Please restart ScyllaDB to reflect the newly backed-up data.",
                 "data": "path",
                 "error": None
             }
         return Response(payload, status=status.HTTP_200_OK)
     
     def put(self, request):
-        choice = request.data.get("proceed",None)
+        choice = request.data.get("restart",None)
         if choice:
+            print(choice)
             StartScylla(HOST,USERNAME,PASSWORD)
             payload = {
                     "status": True,
