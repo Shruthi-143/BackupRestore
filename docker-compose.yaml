@@ -1,0 +1,65 @@
+version: '3.9'
+services:
+  web:
+    build: .
+    container_name: backup_restore
+    command: python manage.py runserver 0.0.0.0:8000
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+    env_file:
+      - .env
+    depends_on:
+      - postgres
+      - scylladb
+      - minio
+      - elasticsearch
+  postgres:
+    image: postgres:14
+    container_name: postgres_db
+    restart: always 
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${DATABASE_NAME}
+    ports: 
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+  scylladb:
+    image: scylladb/scylla:4.6.0 
+    container_name: scylladb
+    restart: always 
+    ports:
+      - "9042:9042"
+    volumes:  
+      - scylladb_data:/var/lib/scylla
+
+  minio:
+    image: minio/minio
+    container_name: minio
+    restart: always   
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY}
+    ports:
+      - "9000:9000" 
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.10.1
+    container_name: elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+    ports:
+      - "9200:9200"
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data   
+volumes:
+  postgres_data:
+  scylladb_data:
+  minio_data:
+  elasticsearch_data:             
