@@ -62,4 +62,4 @@ volumes:
   postgres_data:
   scylladb_data:
   minio_data:
-  elasticsearch_data:             
+  elasticsearch_data:
