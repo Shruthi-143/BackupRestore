@@ -7,6 +7,7 @@ COPY requirements.txt /app/requirements.txt
 COPY .env /app/
 
 RUN apt-get update && apt-get install -y \
+    postgresql-client \
     gcc \
     libpq-dev \
     build-essential \
